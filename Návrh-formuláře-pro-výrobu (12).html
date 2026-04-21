@@ -1,0 +1,1087 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<!-- Playables SDK -->
+<script>// Playables SDK v1.0.0
+// Game lifecycle bridge: rAF-based game-ready detection + event communication
+(function() {
+  'use strict';
+
+  // Idempotency: skip if already initialized (e.g., server-side injection
+  // followed by client-side inject-javascript via the Bloks webview component).
+  if (window.playablesSDK) return;
+
+  var HANDLER_NAME = 'playablesGameEventHandler';
+  var ANDROID_BRIDGE_NAME = '_MetaPlayablesBridge';
+  var RAF_FRAME_THRESHOLD = 3;
+
+  var gameReadySent = false;
+  var firstInteractionSent = false;
+  var errorSent = false;
+  var frameCount = 0;
+  var originalRAF = window.requestAnimationFrame;
+
+  // --- Transport Layer ---
+
+  function hasIOSBridge() {
+    return !!(window.webkit &&
+              window.webkit.messageHandlers &&
+              window.webkit.messageHandlers[HANDLER_NAME]);
+  }
+
+  function hasAndroidBridge() {
+    return !!(window[ANDROID_BRIDGE_NAME] &&
+              typeof window[ANDROID_BRIDGE_NAME].postEvent === 'function');
+  }
+
+  function isInIframe() {
+    return !!(window.parent && window.parent !== window);
+  }
+
+  function sendEvent(eventName, payload) {
+    var message = {
+      type: eventName,
+      payload: payload || {},
+      timestamp: Date.now()
+    };
+
+    if (hasIOSBridge()) {
+      try {
+        window.webkit.messageHandlers[HANDLER_NAME].postMessage(message);
+      } catch (e) { /* ignore */ }
+      return;
+    }
+
+    if (hasAndroidBridge()) {
+    try {
+      var p = payload || {};
+      p.__secureToken = window.__fbAndroidBridgeAuthToken || '';
+      window[ANDROID_BRIDGE_NAME].postEvent(
+        eventName,
+        JSON.stringify(p)
+      );
+    } catch (e) { /* ignore */ }
+    return;
+  }
+
+    if (isInIframe()) {
+      try {
+        window.parent.postMessage(message, '*');
+      } catch (e) { /* ignore */ }
+      return;
+    }
+  }
+
+  // --- rAF Game-Ready Detection ---
+
+  function onFrame() {
+    if (gameReadySent) return;
+
+    frameCount++;
+    if (frameCount >= RAF_FRAME_THRESHOLD) {
+      gameReadySent = true;
+      sendEvent('game_ready', {
+        frame_count: frameCount,
+        detected_at: Date.now()
+      });
+      return;
+    }
+
+    originalRAF.call(window, onFrame);
+  }
+
+  if (originalRAF) {
+    window.requestAnimationFrame = function(callback) {
+      if (!gameReadySent) {
+        return originalRAF.call(window, function(timestamp) {
+          frameCount++;
+          if (frameCount >= RAF_FRAME_THRESHOLD && !gameReadySent) {
+            gameReadySent = true;
+            sendEvent('game_ready', {
+              frame_count: frameCount,
+              detected_at: Date.now()
+            });
+          }
+          callback(timestamp);
+        });
+      }
+      return originalRAF.call(window, callback);
+    };
+  }
+
+  // --- First User Interaction Detection ---
+
+  function setupFirstInteractionDetection() {
+    var events = ['touchstart', 'mousedown', 'keydown'];
+
+    function onFirstInteraction() {
+      if (firstInteractionSent) return;
+      firstInteractionSent = true;
+      sendEvent('user_interaction_start', null);
+
+      for (var i = 0; i < events.length; i++) {
+        document.removeEventListener(events[i], onFirstInteraction, true);
+      }
+    }
+
+    for (var i = 0; i < events.length; i++) {
+      document.addEventListener(events[i], onFirstInteraction, true);
+    }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', setupFirstInteractionDetection);
+  } else {
+    setupFirstInteractionDetection();
+  }
+
+  // --- Auto Error Capture ---
+
+  window.addEventListener('error', function(event) {
+    if (errorSent) return;
+    errorSent = true;
+    sendEvent('error', {
+      message: event.message || 'Unknown error',
+      source: event.filename || '',
+      lineno: event.lineno || 0,
+      colno: event.colno || 0,
+      auto_captured: true
+    });
+  });
+
+  window.addEventListener('unhandledrejection', function(event) {
+    if (errorSent) return;
+    errorSent = true;
+    var reason = event.reason;
+    sendEvent('error', {
+      message: (reason instanceof Error) ? reason.message : String(reason),
+      type: 'unhandled_promise_rejection',
+      auto_captured: true
+    });
+  });
+
+  // --- Public API ---
+
+  window.playablesSDK = {
+    complete: function(score) {
+      sendEvent('game_ended', {
+        score: score,
+        completed: true
+      });
+    },
+
+    error: function(message) {
+      if (errorSent) return;
+      errorSent = true;
+      sendEvent('error', {
+        message: message || 'Unknown error',
+        auto_captured: false
+      });
+    },
+
+    sendEvent: function(eventName, payload) {
+      if (!eventName || typeof eventName !== 'string') return;
+      sendEvent(eventName, payload);
+    }
+  };
+
+  // Kick off rAF detection in case no game code calls rAF immediately
+  if (originalRAF) {
+    originalRAF.call(window, onFrame);
+  }
+})();</script>
+<script>window.Intl=window.Intl||{};Intl.t=function(s){return(Intl._locale&&Intl._locale[s])||s;};</script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Evidence záznamu na KemmSoft v13</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+<style>
+  :root {
+    --kemm-blue: #0055A4;
+    --kemm-blue-dark: #004185;
+    --kemm-blue-light: #E6F0F9;
+  }
+  * { font-family: 'Inter', system-ui, -apple-system, sans-serif; }
+  .bg-kemm { background-color: var(--kemm-blue); }
+  .bg-kemm-dark { background-color: var(--kemm-blue-dark); }
+  .bg-kemm-light { background-color: var(--kemm-blue-light); }
+  .text-kemm { color: var(--kemm-blue); }
+  .border-kemm { border-color: var(--kemm-blue); }
+  .btn-kemm {
+    background-color: var(--kemm-blue);
+    color: white;
+    transition: all 0.2s;
+  }
+  .btn-kemm:hover { background-color: var(--kemm-blue-dark); }
+  .btn-kemm:active { transform: scale(0.98); }
+  .card {
+    background: white;
+    border-radius: 1rem;
+    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+    transition: all 0.3s;
+  }
+  .card:hover {
+    box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  }
+  .input-touch {
+    font-size: 16px;
+    padding: 0.875rem;
+    border-radius: 0.75rem;
+    border: 2px solid #e5e7eb;
+    transition: all 0.2s;
+  }
+  .input-touch:focus {
+    outline: none;
+    border-color: var(--kemm-blue);
+    box-shadow: 0 0 0 3px var(--kemm-blue-light);
+  }
+  .checkbox-touch {
+    width: 24px;
+    height: 24px;
+    cursor: pointer;
+  }
+  .tag {
+    background: var(--kemm-blue);
+    color: white;
+    padding: 0.375rem 0.75rem;
+    border-radius: 2rem;
+    font-size: 0.875rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .toast {
+    position: fixed;
+    top: 1rem;
+    left: 50%;
+    transform: translateX(-50%) translateY(-100px);
+    background: #10b981;
+    color: white;
+    padding: 1rem 1.5rem;
+    border-radius: 0.75rem;
+    box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.2);
+    z-index: 1000;
+    opacity: 0;
+    transition: all 0.3s;
+  }
+  .toast.show {
+    transform: translateX(-50%) translateY(0);
+    opacity: 1;
+  }
+  .toast.error { background: #ef4444; }
+  .scroll-box {
+    max-height: 200px;
+    overflow-y: auto;
+    border: 2px solid #e5e7eb;
+    border-radius: 0.75rem;
+    padding: 0.75rem;
+  }
+  .scroll-box::-webkit-scrollbar { width: 8px; }
+  .scroll-box::-webkit-scrollbar-thumb {
+    background: var(--kemm-blue);
+    border-radius: 4px;
+  }
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .animate-in { animation: slideIn 0.3s ease-out; }
+  table { font-size: 14px; }
+  @media (max-width: 768px) {
+    table { font-size: 12px; }
+  }
+  input[type="number"]::-webkit-outer-spin-button,
+  input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  input[type="number"] { -moz-appearance: textfield; }
+</style>
+</head>
+<body class="bg-gray-50">
+
+<div id="toast" class="toast"></div>
+
+<!-- MOBILE VIEW -->
+<div id="mobileView" class="min-h-screen hidden">
+  <header class="bg-kemm text-white sticky top-0 z-50 shadow-lg">
+    <div class="px-4 py-4 flex justify-between items-center">
+      <div>
+        <h1 class="text-xl font-bold">Evidence záznamu</h1>
+        <p class="text-sm opacity-90">KemmSoft</p>
+      </div>
+      <button onclick="switchToAdmin()" class="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg font-semibold text-sm transition">
+        Admin
+      </button>
+    </div>
+  </header>
+
+  <main class="p-4 pb-32">
+    <div class="card p-5 animate-in">
+      <h2 class="text-xl font-bold text-gray-800 mb-5">Nový záznam</h2>
+      
+      <form id="mobileForm" class="space-y-5">
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-2">Operátor *</label>
+          <input type="text" id="m_operator" class="w-full input-touch" placeholder="Naskenuj kód nebo zadej jméno" required>
+        </div>
+
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-2">Číslo výroby *</label>
+          <input type="text" id="m_vyroba" class="w-full input-touch" placeholder="Zadej nebo naskenuj" required>
+        </div>
+
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-2">Oddělení *</label>
+          <select id="m_oddeleni" class="w-full input-touch" required>
+            <option value="">Vyber oddělení</option>
+            <option value="Svobodová">Svobodová</option>
+            <option value="Beranová">Beranová</option>
+            <option value="Veselá.jn">Veselá.jn</option>
+            <option value="Tumová">Tumová</option>
+            <option value="Hořejší">Hořejší</option>
+            <option value="Nykodýmová">Nykodýmová</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-2">Operace * (min. 1)</label>
+          <div class="scroll-box bg-gray-50" id="operationsBox">
+            <div class="space-y-3">
+              <label class="flex items-center gap-3 p-2 hover:bg-white rounded-lg cursor-pointer">
+                <input type="checkbox" class="checkbox-touch operation-check" value="Montáž">
+                <span class="text-base">Montáž</span>
+              </label>
+              <label class="flex items-center gap-3 p-2 hover:bg-white rounded-lg cursor-pointer">
+                <input type="checkbox" class="checkbox-touch operation-check" value="Montáž kompletní">
+                <span class="text-base">Montáž kompletní</span>
+              </label>
+              <label class="flex items-center gap-3 p-2 hover:bg-white rounded-lg cursor-pointer">
+                <input type="checkbox" class="checkbox-touch operation-check" value="Pájení">
+                <span class="text-base">Pájení</span>
+              </label>
+              <label class="flex items-center gap-3 p-2 hover:bg-white rounded-lg cursor-pointer">
+                <input type="checkbox" class="checkbox-touch operation-check" value="Odholování">
+                <span class="text-base">Odholování</span>
+              </label>
+              <label class="flex items-center gap-3 p-2 hover:bg-white rounded-lg cursor-pointer">
+                <input type="checkbox" class="checkbox-touch operation-check" value="Nastřelování">
+                <span class="text-base">Nastřelování</span>
+              </label>
+              <label class="flex items-center gap-3 p-2 hover:bg-white rounded-lg cursor-pointer">
+                <input type="checkbox" class="checkbox-touch operation-check" value="Foukání">
+                <span class="text-base">Foukání</span>
+              </label>
+              <label class="flex items-center gap-3 p-2 hover:bg-white rounded-lg cursor-pointer">
+                <input type="checkbox" class="checkbox-touch operation-check" value="Lisování">
+                <span class="text-base">Lisování</span>
+              </label>
+              <label class="flex items-center gap-3 p-2 hover:bg-white rounded-lg cursor-pointer">
+                <input type="checkbox" class="checkbox-touch operation-check" value="Cínování">
+                <span class="text-base">Cínování</span>
+              </label>
+              <label class="flex items-center gap-3 p-2 hover:bg-white rounded-lg cursor-pointer">
+                <input type="checkbox" class="checkbox-touch operation-check" value="Motání">
+                <span class="text-base">Motání</span>
+              </label>
+            </div>
+          </div>
+          <div id="selectedOperations" class="flex flex-wrap gap-2 mt-3"></div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-2">Čas od *</label>
+            <input type="time" id="m_casOd" class="w-full input-touch" required>
+          </div>
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-2">Čas do *</label>
+            <input type="time" id="m_casDo" class="w-full input-touch" required>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-2">OK kusy *</label>
+            <input type="number" id="m_ok" min="0" class="w-full input-touch" placeholder="0" required>
+          </div>
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-2">NOK kusy *</label>
+            <input type="number" id="m_nok" min="0" class="w-full input-touch" placeholder="0" required>
+          </div>
+        </div>
+      </form>
+    </div>
+  </main>
+
+  <div class="fixed bottom-0 left-0 right-0 bg-white border-t-2 border-gray-200 p-4 shadow-2xl">
+    <button onclick="saveMobileRecord()" class="w-full btn-kemm py-4 rounded-xl font-bold text-lg shadow-lg">
+      Uložit záznam
+    </button>
+  </div>
+</div>
+
+<!-- DESKTOP VIEW -->
+<div id="desktopView" class="min-h-screen hidden">
+  <header class="bg-kemm text-white shadow-lg">
+    <div class="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
+      <div>
+        <h1 class="text-2xl font-bold">Evidence záznamu na KemmSoft</h1>
+        <p class="text-sm opacity-90">Administrace v13</p>
+      </div>
+      <button onclick="switchToMobile()" class="px-5 py-2 bg-white/20 hover:bg-white/30 rounded-lg font-semibold transition">
+        Mobilní režim
+      </button>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto p-6">
+    <div class="flex gap-3 mb-6 border-b-2 border-gray-200">
+      <button onclick="showTab('vsechny')" id="tab-vsechny" class="px-6 py-3 font-semibold text-kemm border-b-4 border-kemm transition">
+        Všechny záznamy
+      </button>
+      <button onclick="showTab('osobni')" id="tab-osobni" class="px-6 py-3 font-semibold text-gray-600 hover:text-kemm border-b-4 border-transparent transition">
+        Osobní karty
+      </button>
+      <button onclick="showTab('export')" id="tab-export" class="px-6 py-3 font-semibold text-gray-600 hover:text-kemm border-b-4 border-transparent transition">
+        Export
+      </button>
+    </div>
+
+    <!-- VŠECHNY ZÁZNAMY -->
+    <div id="content-vsechny" class="animate-in">
+      <div class="card p-6 mb-6">
+        <h3 class="text-lg font-bold text-gray-800 mb-4">Filtry</h3>
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-2">Datum od</label>
+            <input type="date" id="f_datumOd" class="w-full input-touch text-sm py-2">
+          </div>
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-2">Datum do</label>
+            <input type="date" id="f_datumDo" class="w-full input-touch text-sm py-2">
+          </div>
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-2">Oddělení</label>
+            <select id="f_oddeleni" class="w-full input-touch text-sm py-2">
+              <option value="">Všechna</option>
+              <option value="Svobodová">Svobodová</option>
+              <option value="Beranová">Beranová</option>
+              <option value="Veselá.jn">Veselá.jn</option>
+              <option value="Tumová">Tumová</option>
+              <option value="Hořejší">Hořejší</option>
+              <option value="Nykodýmová">Nykodýmová</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-2">Operátor</label>
+            <input type="text" id="f_operator" class="w-full input-touch text-sm py-2" placeholder="Jméno">
+          </div>
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-2">Číslo výroby</label>
+            <input type="text" id="f_vyroba" class="w-full input-touch text-sm py-2" placeholder="Zakázka">
+          </div>
+          <div class="flex items-end gap-2">
+            <button onclick="applyFilters()" class="btn-kemm px-6 py-2 rounded-lg font-semibold text-sm">
+              Filtrovat
+            </button>
+            <button onclick="resetFilters()" class="px-6 py-2 bg-gray-200 hover:bg-gray-300 rounded-lg font-semibold text-sm transition">
+              Reset
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card p-6">
+        <div class="flex justify-between items-center mb-4">
+          <h3 class="text-lg font-bold text-gray-800">Záznamy (<span id="recordCount">0</span>)</h3>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full">
+            <thead class="bg-kemm-light">
+              <tr class="text-left">
+                <th class="p-3 font-semibold text-kemm">Datum</th>
+                <th class="p-3 font-semibold text-kemm">Čas zadání</th>
+                <th class="p-3 font-semibold text-kemm">Operátor</th>
+                <th class="p-3 font-semibold text-kemm">Oddělení</th>
+                <th class="p-3 font-semibold text-kemm">Zakázka</th>
+                <th class="p-3 font-semibold text-kemm">Operace</th>
+                <th class="p-3 font-semibold text-kemm">Čas od-do</th>
+                <th class="p-3 font-semibold text-kemm">Celk. čas</th>
+                <th class="p-3 font-semibold text-kemm">Přestávka</th>
+                <th class="p-3 font-semibold text-kemm">OK</th>
+                <th class="p-3 font-semibold text-kemm">NOK</th>
+              </tr>
+            </thead>
+            <tbody id="recordsTable"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- OSOBNÍ KARTY -->
+    <div id="content-osobni" class="hidden">
+      <div class="card p-6 mb-6">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-2">Operátor</label>
+            <select id="o_operator" class="w-full input-touch text-sm py-2">
+              <option value="">Vyber operátora</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-2">Datum</label>
+            <input type="date" id="o_datum" class="w-full input-touch text-sm py-2">
+          </div>
+          <div class="flex items-end">
+            <button onclick="loadOsobniKarta()" class="btn-kemm px-6 py-2 rounded-lg font-semibold text-sm w-full">
+              Zobrazit
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div id="osobniKartaResult" class="hidden">
+        <div class="card p-6">
+          <h3 class="text-xl font-bold text-gray-800 mb-4" id="kartaHeader"></h3>
+          <div id="kartaContent"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- EXPORT -->
+    <div id="content-export" class="hidden">
+      <div class="card p-6">
+        <h3 class="text-lg font-bold text-gray-800 mb-4">Export dat</h3>
+        <div class="space-y-4">
+          <div class="p-4 bg-kemm-light rounded-lg">
+            <h4 class="font-semibold text-kemm mb-2">Excel (.xlsx)</h4>
+            <p class="text-sm text-gray-600 mb-3">Vytvoří soubor s listy: Vše, každé Oddělení, každá Zakázka, každý Operátor</p>
+            <button onclick="exportExcel()" class="btn-kemm px-6 py-3 rounded-lg font-semibold">
+              Stáhnout Excel
+            </button>
+          </div>
+          
+          <div class="p-4 bg-gray-100 rounded-lg">
+            <h4 class="font-semibold text-gray-700 mb-2">Záloha / Obnova</h4>
+            <p class="text-sm text-gray-600 mb-3">JSON formát pro přenos dat mezi zařízeními</p>
+            <div class="flex gap-3">
+              <button onclick="backupJSON()" class="px-6 py-3 bg-gray-700 text-white rounded-lg font-semibold hover:bg-gray-800 transition">
+                Záloha JSON
+              </button>
+              <label class="px-6 py-3 bg-gray-700 text-white rounded-lg font-semibold hover:bg-gray-800 transition cursor-pointer">
+                Obnova JSON
+                <input type="file" id="restoreFile" accept=".json" class="hidden" onchange="restoreJSON(event)">
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- LOGIN MODAL -->
+<div id="loginModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 hidden">
+  <div class="card p-8 max-w-md w-full mx-4 animate-in">
+    <h2 class="text-2xl font-bold text-gray-800 mb-2">Admin přístup</h2>
+    <p class="text-gray-600 mb-6">Zadej heslo pro vstup do administrace</p>
+    <input type="password" id="adminPassword" class="w-full input-touch mb-4" placeholder="Heslo" onkeypress="if(event.key==='Enter')checkPassword()">
+    <div class="flex gap-3">
+      <button onclick="checkPassword()" class="btn-kemm flex-1 py-3 rounded-lg font-semibold">
+        Přihlásit
+      </button>
+      <button onclick="closeLogin()" class="px-6 py-3 bg-gray-200 hover:bg-gray-300 rounded-lg font-semibold transition">
+        Zrušit
+      </button>
+    </div>
+    <p id="loginError" class="text-red-500 text-sm mt-3 hidden">Nesprávné heslo</p>
+  </div>
+</div>
+
+<script>
+const STORAGE_KEY = 'kemmsoft_zaznamy';
+const ADMIN_PASSWORD = 'kemm2026';
+let records = [];
+let filteredRecords = [];
+let adminAuth = false;
+
+document.addEventListener('DOMContentLoaded', () => {
+  migrateData();
+  loadRecords();
+  detectMode();
+  setupEventListeners();
+  
+  document.getElementById('o_datum').valueAsDate = new Date();
+});
+
+function migrateData() {
+  const data = localStorage.getItem(STORAGE_KEY);
+  if (!data) return;
+  
+  try {
+    const oldRecords = JSON.parse(data);
+    let migrated = false;
+    
+    oldRecords.forEach(r => {
+      if (typeof r.operace === 'string') {
+        r.operace = [r.operace];
+        migrated = true;
+      }
+      if (!r.casZadani) {
+        r.casZadani = r.casOd || '00:00:00';
+        migrated = true;
+      }
+      if (!r.datumZadani) {
+        r.datumZadani = r.datum;
+        migrated = true;
+      }
+      if (!r.prestavka) {
+        r.prestavka = 0;
+        migrated = true;
+      }
+    });
+    
+    if (migrated) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(oldRecords));
+      showToast('Data byla úspěšně migrována', 'success');
+    }
+  } catch (e) {
+    console.error('Migrace selhala:', e);
+  }
+}
+
+function loadRecords() {
+  const data = localStorage.getItem(STORAGE_KEY);
+  records = data ? JSON.parse(data) : [];
+  filteredRecords = [...records];
+  renderTable();
+  updateOperatorsList();
+}
+
+function saveRecords() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+}
+
+function detectMode() {
+  if (window.innerWidth < 768) {
+    showMobileView();
+  } else {
+    if (adminAuth) {
+      showDesktopView();
+    } else {
+      showMobileView();
+    }
+  }
+}
+
+function showMobileView() {
+  document.getElementById('mobileView').classList.remove('hidden');
+  document.getElementById('desktopView').classList.add('hidden');
+  setTimeout(() => document.getElementById('m_operator').focus(), 100);
+}
+
+function showDesktopView() {
+  document.getElementById('mobileView').classList.add('hidden');
+  document.getElementById('desktopView').classList.remove('hidden');
+}
+
+function switchToAdmin() {
+  document.getElementById('loginModal').classList.remove('hidden');
+  document.getElementById('adminPassword').focus();
+}
+
+function switchToMobile() {
+  adminAuth = false;
+  showMobileView();
+}
+
+function checkPassword() {
+  const pass = document.getElementById('adminPassword').value;
+  if (pass === ADMIN_PASSWORD) {
+    adminAuth = true;
+    closeLogin();
+    showDesktopView();
+  } else {
+    document.getElementById('loginError').classList.remove('hidden');
+    setTimeout(() => {
+      document.getElementById('loginError').classList.add('hidden');
+    }, 3000);
+  }
+}
+
+function closeLogin() {
+  document.getElementById('loginModal').classList.add('hidden');
+  document.getElementById('adminPassword').value = '';
+}
+
+function setupEventListeners() {
+  document.querySelectorAll('.operation-check').forEach(cb => {
+    cb.addEventListener('change', updateOperationTags);
+  });
+  
+  ['m_operator', 'm_vyroba'].forEach(id => {
+    document.getElementById(id).addEventListener('keypress', e => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const inputs = ['m_operator', 'm_vyroba'];
+        const current = inputs.indexOf(id);
+        const next = document.getElementById(inputs[current + 1]) || document.getElementById('m_oddeleni');
+        next.focus();
+      }
+    });
+  });
+  
+  window.addEventListener('resize', detectMode);
+}
+
+function updateOperationTags() {
+  const selected = Array.from(document.querySelectorAll('.operation-check:checked')).map(cb => cb.value);
+  const container = document.getElementById('selectedOperations');
+  container.innerHTML = selected.map(op => `
+    <div class="tag">
+      ${op}
+    </div>
+  `).join('');
+}
+
+function calculateTime(casOd, casDo) {
+  const [h1, m1] = casOd.split(':').map(Number);
+  const [h2, m2] = casDo.split(':').map(Number);
+  let minutes = (h2 * 60 + m2) - (h1 * 60 + m1);
+  if (minutes < 0) minutes += 24 * 60;
+  return minutes;
+}
+
+function saveMobileRecord() {
+  const operator = document.getElementById('m_operator').value.trim();
+  const vyroba = document.getElementById('m_vyroba').value.trim();
+  const oddeleni = document.getElementById('m_oddeleni').value;
+  const operace = Array.from(document.querySelectorAll('.operation-check:checked')).map(cb => cb.value);
+  const casOd = document.getElementById('m_casOd').value;
+  const casDo = document.getElementById('m_casDo').value;
+  const ok = parseInt(document.getElementById('m_ok').value) || 0;
+  const nok = parseInt(document.getElementById('m_nok').value) || 0;
+  
+  if (!operator || !vyroba || !oddeleni || operace.length === 0 || !casOd || !casDo) {
+    showToast('Vyplň všechna povinná pole', 'error');
+    return;
+  }
+  
+  const celkCas = calculateTime(casOd, casDo);
+  const prestavka = celkCas > 360 ? 30 : 0;
+  const now = new Date();
+  const casZadani = now.toTimeString().split(' ')[0];
+  const datumZadani = now.toISOString().split('T')[0];
+  
+  const record = {
+    id: Date.now(),
+    datum: datumZadani,
+    datumZadani,
+    casZadani,
+    operator,
+    vyroba,
+    oddeleni,
+    operace,
+    casOd,
+    casDo,
+    celkovyCas: celkCas,
+    prestavka,
+    ok,
+    nok
+  };
+  
+  records.push(record);
+  saveRecords();
+  loadRecords();
+  
+  document.getElementById('mobileForm').reset();
+  document.getElementById('selectedOperations').innerHTML = '';
+  document.getElementById('m_operator').focus();
+  showToast('Uloženo', 'success');
+}
+
+function showToast(msg, type = 'success') {
+  const toast = document.getElementById('toast');
+  toast.textContent = msg;
+  toast.className = 'toast';
+  if (type === 'error') toast.classList.add('error');
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 3000);
+}
+
+function showTab(tab) {
+  ['vsechny', 'osobni', 'export'].forEach(t => {
+    document.getElementById(`content-${t}`).classList.add('hidden');
+    document.getElementById(`tab-${t}`).classList.remove('border-kemm', 'text-kemm');
+    document.getElementById(`tab-${t}`).classList.add('border-transparent', 'text-gray-600');
+  });
+  document.getElementById(`content-${tab}`).classList.remove('hidden');
+  document.getElementById(`tab-${tab}`).classList.add('border-kemm', 'text-kemm');
+  document.getElementById(`tab-${tab}`).classList.remove('border-transparent', 'text-gray-600');
+}
+
+function applyFilters() {
+  const dOd = document.getElementById('f_datumOd').value;
+  const dDo = document.getElementById('f_datumDo').value;
+  const odd = document.getElementById('f_oddeleni').value;
+  const op = document.getElementById('f_operator').value.toLowerCase();
+  const vyr = document.getElementById('f_vyroba').value.toLowerCase();
+  
+  filteredRecords = records.filter(r => {
+    if (dOd && r.datum < dOd) return false;
+    if (dDo && r.datum > dDo) return false;
+    if (odd && r.oddeleni !== odd) return false;
+    if (op && !r.operator.toLowerCase().includes(op)) return false;
+    if (vyr && !r.vyroba.toLowerCase().includes(vyr)) return false;
+    return true;
+  });
+  
+  renderTable();
+}
+
+function resetFilters() {
+  document.getElementById('f_datumOd').value = '';
+  document.getElementById('f_datumDo').value = '';
+  document.getElementById('f_oddeleni').value = '';
+  document.getElementById('f_operator').value = '';
+  document.getElementById('f_vyroba').value = '';
+  filteredRecords = [...records];
+  renderTable();
+}
+
+function renderTable() {
+  const tbody = document.getElementById('recordsTable');
+  document.getElementById('recordCount').textContent = filteredRecords.length;
+  
+  if (filteredRecords.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="11" class="p-8 text-center text-gray-500">Žádné záznamy</td></tr>';
+    return;
+  }
+  
+  tbody.innerHTML = filteredRecords.map(r => `
+    <tr class="border-b hover:bg-gray-50 transition">
+      <td class="p-3">${formatDate(r.datum)}</td>
+      <td class="p-3 text-sm">${r.casZadani}</td>
+      <td class="p-3 font-medium">${r.operator}</td>
+      <td class="p-3">${r.oddeleni}</td>
+      <td class="p-3">${r.vyroba}</td>
+      <td class="p-3 text-sm">${r.operace.join(', ')}</td>
+      <td class="p-3 text-sm">${r.casOd} - ${r.casDo}</td>
+      <td class="p-3 font-semibold">${r.celkovyCas} min</td>
+      <td class="p-3">${r.prestavka} min</td>
+      <td class="p-3 text-green-600 font-semibold">${r.ok}</td>
+      <td class="p-3 text-red-600 font-semibold">${r.nok}</td>
+    </tr>
+  `).join('');
+}
+
+function formatDate(dateStr) {
+  const [y, m, d] = dateStr.split('-');
+  return `${d}.${m}.${y}`;
+}
+
+function updateOperatorsList() {
+  const operators = [...new Set(records.map(r => r.operator))].sort();
+  const select = document.getElementById('o_operator');
+  select.innerHTML = '<option value="">Vyber operátora</option>' + 
+    operators.map(op => `<option value="${op}">${op}</option>`).join('');
+}
+
+function loadOsobniKarta() {
+  const operator = document.getElementById('o_operator').value;
+  const datum = document.getElementById('o_datum').value;
+  
+  if (!operator || !datum) {
+    showToast('Vyber operátora a datum', 'error');
+    return;
+  }
+  
+  const dayRecords = records.filter(r => r.operator === operator && r.datum === datum);
+  
+  if (dayRecords.length === 0) {
+    document.getElementById('osobniKartaResult').classList.remove('hidden');
+    document.getElementById('kartaHeader').textContent = `${operator} - ${formatDate(datum)}`;
+    document.getElementById('kartaContent').innerHTML = '<p class="text-gray-500 text-center py-8">Žádné záznamy pro tento den</p>';
+    return;
+  }
+  
+  const byVyroba = {};
+  dayRecords.forEach(r => {
+    if (!byVyroba[r.vyroba]) byVyroba[r.vyroba] = {};
+    if (!byVyroba[r.vyroba][r.oddeleni]) byVyroba[r.vyroba][r.oddeleni] = [];
+    byVyroba[r.vyroba][r.oddeleni].push(r);
+  });
+  
+  let html = '';
+  let totalCas = 0, totalPrestavka = 0, totalOK = 0, totalNOK = 0;
+  
+  Object.keys(byVyroba).forEach(vyroba => {
+    html += `<div class="mb-6"><h4 class="text-lg font-bold text-kemm mb-3">Zakázka: ${vyroba}</h4>`;
+    Object.keys(byVyroba[vyroba]).forEach(oddeleni => {
+      html += `<div class="ml-4 mb-4"><h5 class="font-semibold text-gray-700 mb-2">${oddeleni}</h5>`;
+      html += '<div class="space-y-2">';
+      byVyroba[vyroba][oddeleni].forEach(r => {
+        html += `
+          <div class="bg-gray-50 p-3 rounded-lg text-sm">
+            <div class="flex justify-between flex-wrap gap-2">
+              <div>
+                <span class="font-medium">${r.operace.join(', ')}</span> • 
+                ${r.casOd} - ${r.casDo} (${r.celkovyCas} min)
+              </div>
+              <div class="text-gray-600">
+                OK: <span class="text-green-600 font-semibold">${r.ok}</span> • 
+                NOK: <span class="text-red-600 font-semibold">${r.nok}</span>
+              </div>
+            </div>
+          </div>`;
+        totalCas += r.celkovyCas;
+        totalPrestavka += r.prestavka;
+        totalOK += r.ok;
+        totalNOK += r.nok;
+      });
+      html += '</div></div>';
+    });
+    html += '</div>';
+  });
+  
+  html += `
+    <div class="mt-6 pt-6 border-t-2 border-gray-300">
+      <h4 class="text-lg font-bold text-gray-800 mb-3">Součty za den</h4>
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div class="bg-kemm-light p-4 rounded-lg">
+          <div class="text-sm text-gray-600">Celkový čas</div>
+          <div class="text-2xl font-bold text-kemm">${totalCas} min</div>
+        </div>
+        <div class="bg-orange-50 p-4 rounded-lg">
+          <div class="text-sm text-gray-600">Přestávky</div>
+          <div class="text-2xl font-bold text-orange-600">${totalPrestavka} min</div>
+        </div>
+        <div class="bg-green-50 p-4 rounded-lg">
+          <div class="text-sm text-gray-600">OK kusy</div>
+          <div class="text-2xl font-bold text-green-600">${totalOK}</div>
+        </div>
+        <div class="bg-red-50 p-4 rounded-lg">
+          <div class="text-sm text-gray-600">NOK kusy</div>
+          <div class="text-2xl font-bold text-red-600">${totalNOK}</div>
+        </div>
+      </div>
+    </div>`;
+  
+  document.getElementById('kartaHeader').textContent = `${operator} - ${formatDate(datum)}`;
+  document.getElementById('kartaContent').innerHTML = html;
+  document.getElementById('osobniKartaResult').classList.remove('hidden');
+}
+
+function exportExcel() {
+  if (records.length === 0) {
+    showToast('Žádná data k exportu', 'error');
+    return;
+  }
+  
+  const wb = XLSX.utils.book_new();
+  
+  const allData = prepareSheetData(records);
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(allData), 'Vše');
+  
+  const oddeleni = [...new Set(records.map(r => r.oddeleni))];
+  oddeleni.forEach(odd => {
+    const data = records.filter(r => r.oddeleni === odd);
+    if (data.length > 0) {
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(prepareSheetData(data)), odd.substring(0, 31));
+    }
+  });
+  
+  const zakazky = [...new Set(records.map(r => r.vyroba))];
+  zakazky.forEach(zak => {
+    const data = records.filter(r => r.vyroba === zak);
+    if (data.length > 0) {
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(prepareSheetData(data)), zak.substring(0, 31));
+    }
+  });
+  
+  const operators = [...new Set(records.map(r => r.operator))];
+  operators.forEach(op => {
+    const data = records.filter(r => r.operator === op);
+    if (data.length > 0) {
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(prepareSheetData(data)), op.substring(0, 31));
+    }
+  });
+  
+  const filename = `Evidence_KemmSoft_${new Date().toISOString().split('T')[0]}.xlsx`;
+  XLSX.writeFile(wb, filename);
+  showToast('Excel exportován', 'success');
+}
+
+function prepareSheetData(data) {
+  const headers = [
+    'Datum', 'Čas zadání', 'Operátor', 'Oddělení', 'Zakázka', 'Operace',
+    'Čas od', 'do', 'Celkový čas min', 'Přestávka min', 'OK', 'NOK'
+  ];
+  
+  const rows = data.map(r => [
+    r.datum,
+    r.casZadani,
+    r.operator,
+    r.oddeleni,
+    r.vyroba,
+    r.operace.join(', '),
+    r.casOd,
+    r.casDo,
+    r.celkovyCas,
+    r.prestavka,
+    r.ok,
+    r.nok
+  ]);
+  
+  const totalCas = data.reduce((sum, r) => sum + r.celkovyCas, 0);
+  const totalPrestavka = data.reduce((sum, r) => sum + r.prestavka, 0);
+  const totalOK = data.reduce((sum, r) => sum + r.ok, 0);
+  const totalNOK = data.reduce((sum, r) => sum + r.nok, 0);
+  
+  rows.push([]);
+  rows.push(['SOUČTY', '', '', '', '', '', '', '', totalCas, totalPrestavka, totalOK, totalNOK]);
+  
+  return [headers, ...rows];
+}
+
+function backupJSON() {
+  const data = JSON.stringify(records, null, 2);
+  const blob = new Blob([data], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `KemSoft_zaloha_${new Date().toISOString().split('T')[0]}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('Záloha vytvořena', 'success');
+}
+
+function restoreJSON(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (Array.isArray(data)) {
+        records = data;
+        saveRecords();
+        loadRecords();
+        showToast('Data obnovena', 'success');
+      } else {
+        showToast('Neplatný formát souboru', 'error');
+      }
+    } catch (err) {
+      showToast('Chyba při načítání souboru', 'error');
+    }
+  };
+  reader.readAsText(file);
+  event.target.value = '';
+}
+</script>
+
+</body>
+</html>
